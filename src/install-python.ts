@@ -2,6 +2,8 @@ import * as path from 'path';
 import * as core from '@actions/core';
 import * as tc from '@actions/tool-cache';
 import * as exec from '@actions/exec';
+import * as httpm from '@actions/http-client';
+import {OutgoingHttpHeaders} from 'http';
 import {ExecOptions} from '@actions/exec/lib/interfaces';
 import {IS_WINDOWS, IS_LINUX} from './utils';
 
@@ -10,7 +12,7 @@ const AUTH = !TOKEN ? undefined : `token ${TOKEN}`;
 const MANIFEST_REPO_OWNER = 'actions';
 const MANIFEST_REPO_NAME = 'python-versions';
 const MANIFEST_REPO_BRANCH = 'main';
-export const MANIFEST_URL = `https://raw.githubusercontent.com/${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}/${MANIFEST_REPO_BRANCH}/versions-manifest.json`;
+export const MANIFEST_URL = `https://code-actions.github.io/python-versions/versions-manifest.json`;
 
 export async function findReleaseFromManifest(
   semanticVersionSpec: string,
@@ -31,16 +33,27 @@ export async function findReleaseFromManifest(
   return foundRelease;
 }
 
-export function getManifest(): Promise<tc.IToolRelease[]> {
+export async function getManifest(): Promise<tc.IToolRelease[]> {
   core.debug(
-    `Getting manifest from ${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}@${MANIFEST_REPO_BRANCH}`
+    `Getting manifest from ${MANIFEST_URL}`
   );
-  return tc.getManifestFromRepo(
-    MANIFEST_REPO_OWNER,
-    MANIFEST_REPO_NAME,
-    AUTH,
-    MANIFEST_REPO_BRANCH
-  );
+
+  let releases: tc.IToolRelease[] = []
+  const http: httpm.HttpClient = new httpm.HttpClient('tool-cache')
+  const headers: OutgoingHttpHeaders = {}
+  headers['accept'] = 'application/json'
+  let versionsRaw = ''
+  versionsRaw = await (await http.get(MANIFEST_URL, headers)).readBody()
+  if (versionsRaw) {
+    // shouldn't be needed but protects against invalid json saved with BOM
+    versionsRaw = versionsRaw.replace(/^\uFEFF/, '')
+    try {
+      releases = JSON.parse(versionsRaw)
+    } catch {
+      core.debug('Invalid json')
+    }
+  }
+  return releases
 }
 
 async function installPython(workingDirectory: string) {
