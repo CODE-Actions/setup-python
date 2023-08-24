@@ -1,0 +1,31 @@
+name: Deploy for CODE
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-deploy:
+    runs-on: [ ubuntu-20.04 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 19.6.0
+
+      - name: Install packages
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          git config --local user.name retzero
+          git config --local user.email ticce@naver.com
+          git add ./dist/
+          git commit -m "[ci skip] dist/ update with ${GITHUB_SHA:0:7}"
+          git push origin
