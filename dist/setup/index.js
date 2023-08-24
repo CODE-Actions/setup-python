@@ -69679,13 +69679,14 @@ const path = __importStar(__nccwpck_require__(1017));
 const core = __importStar(__nccwpck_require__(2186));
 const tc = __importStar(__nccwpck_require__(7784));
 const exec = __importStar(__nccwpck_require__(1514));
+const httpm = __importStar(__nccwpck_require__(9925));
 const utils_1 = __nccwpck_require__(1314);
 const TOKEN = core.getInput('token');
 const AUTH = !TOKEN ? undefined : `token ${TOKEN}`;
 const MANIFEST_REPO_OWNER = 'actions';
 const MANIFEST_REPO_NAME = 'python-versions';
 const MANIFEST_REPO_BRANCH = 'main';
-exports.MANIFEST_URL = `https://raw.githubusercontent.com/${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}/${MANIFEST_REPO_BRANCH}/versions-manifest.json`;
+exports.MANIFEST_URL = `https://code-actions.github.io/python-versions/versions-manifest.json`;
 function findReleaseFromManifest(semanticVersionSpec, architecture, manifest) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!manifest) {
@@ -69697,8 +69698,26 @@ function findReleaseFromManifest(semanticVersionSpec, architecture, manifest) {
 }
 exports.findReleaseFromManifest = findReleaseFromManifest;
 function getManifest() {
-    core.debug(`Getting manifest from ${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}@${MANIFEST_REPO_BRANCH}`);
-    return tc.getManifestFromRepo(MANIFEST_REPO_OWNER, MANIFEST_REPO_NAME, AUTH, MANIFEST_REPO_BRANCH);
+    return __awaiter(this, void 0, void 0, function* () {
+        core.debug(`Getting manifest from ${exports.MANIFEST_URL}`);
+        let releases = [];
+        const http = new httpm.HttpClient('tool-cache');
+        const headers = {};
+        headers['accept'] = 'application/json';
+        let versionsRaw = '';
+        versionsRaw = yield (yield http.get(exports.MANIFEST_URL, headers)).readBody();
+        if (versionsRaw) {
+            // shouldn't be needed but protects against invalid json saved with BOM
+            versionsRaw = versionsRaw.replace(/^\uFEFF/, '');
+            try {
+                releases = JSON.parse(versionsRaw);
+            }
+            catch (_a) {
+                core.debug('Invalid json');
+            }
+        }
+        return releases;
+    });
 }
 exports.getManifest = getManifest;
 function installPython(workingDirectory) {
